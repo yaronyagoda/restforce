@@ -1,6 +1,11 @@
 module Restforce
   module Concerns
     module Streaming
+
+
+      def on_disconnect(&block)
+        @disconnect_block = block
+      end
       # Public: Subscribe to a PushTopic
       #
       # channels - The name of the PushTopic channel(s) to subscribe to.
@@ -30,6 +35,28 @@ module Restforce
           client.bind 'transport:up' do
             Restforce.log "[COMETD UP]"
           end
+
+          client.add_extension ReplayExtension.new(replay_handlers) if @disconnect_block.present?
+
+        end
+      end
+
+      class OnDisconnectExtension
+        def initialize(disconnect_block)
+          @disconnect_block = disconnect_block
+        end
+
+        def incoming(message, callback)
+          Restforce.log ("OnDisconnectExtension - recieved a message #{message}")
+          if message['channel'] == "/meta/disconnect"
+            Restforce.log ("OnDisconnectExtension - recieved a disconenct message #{message}")
+            @disconnect_block.call
+          end
+          callback.call(message)
+        end
+
+        def outgoing(message, callback)
+          callback.call(message)
         end
       end
     end
